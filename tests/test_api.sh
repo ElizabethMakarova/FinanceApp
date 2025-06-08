@@ -7,31 +7,51 @@ TEST_USER_PASSWORD="TestPassword123!"
 TEST_USER_FIRSTNAME="Test"
 TEST_USER_LASTNAME="User"
 
-# Функции вывода
-print_success() { echo -e "\033[32m[SUCCESS] $1\033[0m"; }
-print_error() { echo -e "\033[31m[ERROR] $1\033[0m"; exit 1; }
-print_info() { echo -e "\033[34m[INFO] $1\033[0m"; }
+# Цвета для вывода
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-# Проверка доступности сервера
-check_server() {
-  if ! curl -s "$BASE_URL/api/health" >/dev/null; then
-    print_error "Server is not responding at $BASE_URL"
-  fi
+# Функции вывода
+print_success() { echo -e "${GREEN}[SUCCESS] $1${NC}"; }
+print_error() { echo -e "${RED}[ERROR] $1${NC}"; exit 1; }
+print_info() { echo -e "${BLUE}[INFO] $1${NC}"; }
+
+# 1. Проверка доступности сервера
+check_server_availability() {
+  print_info "Checking server availability at $BASE_URL..."
+  
+  local max_attempts=10
+  local attempt=0
+  
+  while [ $attempt -lt $max_attempts ]; do
+    if curl -s -o /dev/null -w "%{http_code}" "$BASE_URL" | grep -q "200\|30[0-9]"; then
+      print_success "Server is responding"
+      return 0
+    fi
+    
+    attempt=$((attempt + 1))
+    print_info "Attempt $attempt/$max_attempts - waiting 3 seconds..."
+    sleep 3
+  done
+  
+  print_error "Server is not responding after $max_attempts attempts"
+  exit 1
 }
 
-# 1. Тест регистрации с улучшенной диагностикой
-test_register() {
-  print_info "1. Testing registration..."
-  local data=$(jq -n \
-    --arg email "$TEST_USER_EMAIL" \
-    --arg pass "$TEST_USER_PASSWORD" \
-    --arg first "$TEST_USER_FIRSTNAME" \
-    --arg last "$TEST_USER_LASTNAME" \
-    '{email: $email, password: $pass, firstName: $first, lastName: $last}')
+# 2. Тест регистрации пользователя
+test_registration() {
+  print_info "Testing user registration..."
   
   local response=$(curl -s -X POST "$BASE_URL/api/auth/register" \
     -H "Content-Type: application/json" \
-    -d "$data")
+    -d "{
+      \"email\": \"$TEST_USER_EMAIL\",
+      \"password\": \"$TEST_USER_PASSWORD\",
+      \"firstName\": \"$TEST_USER_FIRSTNAME\",
+      \"lastName\": \"$TEST_USER_LASTNAME\"
+    }")
   
   echo "Response: $response"
   
@@ -47,12 +67,47 @@ test_register() {
     print_error "Registration failed - no token received"
   fi
   
-  print_success "Registration successful"
+  print_success "Registration successful. User ID: $USER_ID"
 }
 
-# Остальные тесты остаются без изменений...
+# 3. Тест входа пользователя
+test_login() {
+  print_info "Testing user login..."
+  
+  local response=$(curl -s -X POST "$BASE_URL/api/auth/login" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"email\": \"$TEST_USER_EMAIL\",
+      \"password\": \"$TEST_USER_PASSWORD\"
+    }")
+  
+  echo "Response: $response"
+  
+  LOGIN_TOKEN=$(echo "$response" | jq -r '.token')
+  
+  if [ -z "$LOGIN_TOKEN" ] || [ "$LOGIN_TOKEN" = "null" ]; then
+    print_error "Login failed"
+  fi
+  
+  print_success "Login successful. Token: $LOGIN_TOKEN"
+}
 
-# Основной поток
-check_server
-test_register
-# Другие тесты...
+# 4. Основной поток выполнения
+main() {
+  # Проверяем доступность сервера
+  check_server_availability
+  
+  # Проверяем наличие jq
+  if ! command -v jq &> /dev/null; then
+    print_error "jq is not installed. Please install jq first."
+  fi
+  
+  # Выполняем тесты
+  test_registration
+  test_login
+  
+  print_success "All basic tests passed successfully!"
+}
+
+main
+
