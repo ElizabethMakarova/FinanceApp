@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -113,6 +112,31 @@ export default function Profile() {
     },
   });
 
+  // Новая мутация для удаления аккаунта
+  const deleteAccountMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/user", {
+        method: "DELETE",
+        headers: AuthManager.getAuthHeaders(),
+      });
+      if (!response.ok) throw new Error("Ошибка удаления аккаунта");
+    },
+    onSuccess: () => {
+      // Выход из системы
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      // Перенаправляем на страницу входа
+      window.location.href = "/login";
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Ошибка удаления",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
   const tabs = [
     { id: "profile", label: "Профиль", icon: User },
     { id: "security", label: "Безопасность", icon: Shield },
@@ -141,7 +165,7 @@ export default function Profile() {
                     <p className="text-sm text-gray-600">{user?.email}</p>
                   </div>
                 </div>
-                
+
                 <nav className="space-y-2">
                   {tabs.map((tab) => {
                     const Icon = tab.icon;
@@ -149,11 +173,10 @@ export default function Profile() {
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                          activeTab === tab.id
+                        className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${activeTab === tab.id
                             ? "bg-gray-900 text-white"
                             : "text-gray-700 hover:bg-gray-100"
-                        }`}
+                          }`}
                       >
                         <Icon className="w-4 h-4" />
                         <span className="text-sm font-medium">{tab.label}</span>
@@ -217,8 +240,8 @@ export default function Profile() {
                           </FormItem>
                         )}
                       />
-                      <Button 
-                        type="submit" 
+                      <Button
+                        type="submit"
                         disabled={profileMutation.isPending}
                         className="btn-primary"
                       >
@@ -226,9 +249,9 @@ export default function Profile() {
                       </Button>
                     </form>
                   </Form>
-                  
+
                   <Separator />
-                  
+
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Статистика аккаунта</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -298,8 +321,8 @@ export default function Profile() {
                           </FormItem>
                         )}
                       />
-                      <Button 
-                        type="submit" 
+                      <Button
+                        type="submit"
                         disabled={passwordMutation.isPending}
                         className="btn-primary"
                       >
@@ -343,15 +366,25 @@ export default function Profile() {
                   </div>
 
                   <Separator />
-                  
+
                   <div className="pt-4">
                     <h4 className="font-medium text-rose-600 mb-2">Опасная зона</h4>
                     <p className="text-sm text-gray-600 mb-4">
                       Эти действия необратимы. Будьте осторожны.
                     </p>
-                    <Button variant="destructive" size="sm" className="btn-danger">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="btn-danger"
+                      onClick={() => {
+                        if (confirm("Вы уверены, что хотите удалить аккаунт? Все ваши данные будут безвозвратно удалены.")) {
+                          deleteAccountMutation.mutate();
+                        }
+                      }}
+                      disabled={deleteAccountMutation.isPending}
+                    >
                       <Trash2 className="w-4 h-4 mr-2" />
-                      Удалить аккаунт
+                      {deleteAccountMutation.isPending ? "Удаление..." : "Удалить аккаунт"}
                     </Button>
                   </div>
                 </CardContent>

@@ -14,6 +14,8 @@ export class EmailService {
     if (process.env.SENDGRID_API_KEY) {
       sgMail.setApiKey(process.env.SENDGRID_API_KEY);
       this.isConfigured = true;
+    } else {
+      console.warn('SendGrid API key not found. Emails will be logged to console.');
     }
   }
 
@@ -25,16 +27,16 @@ export class EmailService {
   }
 
   async sendPasswordResetEmail(to: string, resetToken: string, frontendUrl: string): Promise<boolean> {
+    const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+
     if (!this.isConfigured) {
-      console.warn('SendGrid не настроен. Пропускаю отправку email.');
-      return false;
+      console.log(`Password reset link for ${to}: ${resetLink}`);
+      return true;
     }
 
-    const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
-    
     const msg = {
       to,
-      from: 'noreply@ecofinance.app', // Замените на ваш верифицированный email
+      from: 'noreply@ecofinance.app',
       subject: 'Восстановление пароля - EcoFinance',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -97,8 +99,8 @@ export class EmailService {
 
   async sendWelcomeEmail(to: string, firstName: string): Promise<boolean> {
     if (!this.isConfigured) {
-      console.warn('SendGrid не настроен. Пропускаю отправку email.');
-      return false;
+      console.log(`Welcome email would be sent to: ${to}`);
+      return true;
     }
 
     const msg = {
@@ -131,7 +133,7 @@ export class EmailService {
           
           <div style="text-align: center; margin: 30px 0;">
             <a href="${process.env.FRONTEND_URL}/dashboard" 
-               style="background: linear-gradient(135deg, #22c55e 0%, #16a085 100%); 
+              style="background: linear-gradient(135deg, #22c55e 0%, #16a085 100%); 
                       color: white; 
                       padding: 12px 30px; 
                       text-decoration: none; 

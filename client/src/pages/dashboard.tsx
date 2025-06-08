@@ -5,25 +5,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import EcoImpactCard from "@/components/eco-impact-card";
 import { Link } from "wouter";
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  PlusCircle, 
+import {
+  TrendingUp,
+  TrendingDown,
+  PlusCircle,
   MinusCircle,
   Wallet,
   BarChart3,
   Leaf,
-  Calendar
-} from "lucide-react";
+  Target
+} from "lucide-react"; // Убрал импорт Calendar
 import { AuthManager } from "@/lib/auth";
 import { Transaction } from "@/lib/types";
-import { format } from "date-fns";
-import { ru } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
+import { formatCurrency } from "@/lib/utils";
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
-  
+
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["/api/dashboard/stats"],
     queryFn: async () => {
@@ -43,19 +42,36 @@ export default function Dashboard() {
       });
       if (!response.ok) throw new Error("Failed to fetch transactions");
       const transactions = await response.json();
-      return transactions.slice(0, 5); // Show only last 5 transactions
+      return transactions.slice(0, 5);
     },
   });
 
-  // Подписка на обновления данных
   React.useEffect(() => {
     const interval = setInterval(() => {
       queryClient.invalidateQueries(["/api/dashboard/stats"]);
       queryClient.invalidateQueries(["/api/transactions"]);
-    }, 10000); // Обновление каждые 10 секунд
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [queryClient]);
+
+  const getCategoryLabel = (category: string) => {
+    const categories = {
+      'salary': 'Зарплата',
+      'freelance': 'Фриланс',
+      'business': 'Бизнес',
+      'investment': 'Инвестиции',
+      'food': 'Еда',
+      'transport': 'Транспорт',
+      'utilities': 'Коммунальные',
+      'shopping': 'Покупки',
+      'entertainment': 'Развлечения',
+      'healthcare': 'Здоровье',
+      'education': 'Образование',
+      'other': 'Другое'
+    };
+    return categories[category as keyof typeof categories] || category;
+  };
 
   if (statsLoading) {
     return (
@@ -75,33 +91,6 @@ export default function Dashboard() {
       </DashboardLayout>
     );
   }
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('ru-RU', {
-      style: 'currency',
-      currency: 'RUB',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const getCategoryLabel = (category: string) => {
-    const categories = {
-      'salary': 'Зарплата',
-      'freelance': 'Фриланс',
-      'business': 'Бизнес',
-      'investment': 'Инвестиции',
-      'food': 'Еда',
-      'transport': 'Транспорт',
-      'utilities': 'Коммунальные',
-      'shopping': 'Покупки',
-      'entertainment': 'Развлечения',
-      'healthcare': 'Здоровье',
-      'education': 'Образование',
-      'other': 'Другое'
-    };
-    return categories[category as keyof typeof categories] || category;
-  };
 
   return (
     <DashboardLayout>
@@ -193,7 +182,7 @@ export default function Dashboard() {
                   <div className="flex justify-between items-center">
                     <h3 className="text-lg font-semibold text-gray-700">Текущий баланс</h3>
                     <span className="text-sm font-medium px-3 py-1 rounded-full bg-emerald-100 text-emerald-700">
-                      {stats?.monthlyIncome && stats?.monthlyExpenses 
+                      {stats?.monthlyIncome && stats?.monthlyExpenses
                         ? `${stats.monthlyIncome > stats.monthlyExpenses ? '+' : ''}${((stats.monthlyIncome - stats.monthlyExpenses) / (stats.monthlyExpenses || 1) * 100).toFixed(1)}% за месяц`
                         : 'Нет данных'
                       }
@@ -203,20 +192,20 @@ export default function Dashboard() {
                     {stats ? formatCurrency(stats.totalBalance || 0) : '₽0'}
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-gradient-to-r from-gray-800 to-gray-600 h-2 rounded-full transition-all duration-500" 
-                      style={{ 
-                        width: stats?.monthlyIncome 
+                    <div
+                      className="bg-gradient-to-r from-gray-800 to-gray-600 h-2 rounded-full transition-all duration-500"
+                      style={{
+                        width: stats?.monthlyIncome
                           ? `${Math.min((stats.monthlyIncome / (stats.monthlyIncome + (stats.monthlyExpenses || 0))) * 100, 100)}%`
                           : '0%'
                       }}
                     ></div>
                   </div>
-                  
+
                   {/* Quick Actions */}
                   <div className="grid grid-cols-2 gap-4 mt-6">
                     <Link href="/transactions">
-                      <Button className="w-full btn-primary"> {/* Исправлен класс */}
+                      <Button className="w-full btn-primary">
                         <PlusCircle className="mr-2 h-4 w-4" />
                         Добавить доход
                       </Button>
@@ -286,13 +275,12 @@ export default function Dashboard() {
                     className="transaction-item flex items-center justify-between"
                   >
                     <div className="flex items-center space-x-4">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        transaction.type === 'income' 
-                          ? 'bg-emerald-100 text-emerald-600' 
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${transaction.type === 'income'
+                          ? 'bg-emerald-100 text-emerald-600'
                           : 'bg-rose-100 text-rose-600'
-                      }`}>
-                        {transaction.type === 'income' ? 
-                          <TrendingUp className="h-5 w-5" /> : 
+                        }`}>
+                        {transaction.type === 'income' ?
+                          <TrendingUp className="h-5 w-5" /> :
                           <TrendingDown className="h-5 w-5" />
                         }
                       </div>
@@ -300,21 +288,14 @@ export default function Dashboard() {
                         <div className="font-semibold text-gray-900">
                           {transaction.description || getCategoryLabel(transaction.category)}
                         </div>
-                        <div className="flex items-center space-x-2 text-sm text-gray-500">
-                          <span className="status-success">
-                            {getCategoryLabel(transaction.category)}
-                          </span>
-                          <span className="flex items-center">
-                            <Calendar className="h-3 w-3 mr-1" />
-                            {format(new Date(transaction.date), 'dd MMM yyyy', { locale: ru })}
-                          </span>
+                        <div className="text-sm text-gray-500">
+                          {getCategoryLabel(transaction.category)}
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-lg font-bold ${
-                        transaction.type === 'income' ? 'text-emerald-600' : 'text-rose-600'
-                      }`}>
+                      <div className={`text-lg font-bold ${transaction.type === 'income' ? 'text-emerald-600' : 'text-rose-600'
+                        }`}>
                         {transaction.type === 'income' ? '+' : '-'}{formatCurrency(parseFloat(transaction.amount))}
                       </div>
                     </div>
@@ -322,6 +303,31 @@ export default function Dashboard() {
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Goals Section */}
+        <Card className="premium-card">
+          <CardHeader>
+            <CardTitle className="text-gray-900 flex items-center justify-between">
+              Ваши цели
+              <Link href="/goals">
+                <Button variant="outline" size="sm" className="border-gray-200 text-gray-600 hover:bg-gray-50">
+                  Управление целями
+                </Button>
+              </Link>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="text-center py-8">
+              <Target className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 mb-4">Управляйте своими финансовыми целями</p>
+              <Link href="/goals">
+                <Button className="btn-primary">
+                  Перейти к целям
+                </Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </div>

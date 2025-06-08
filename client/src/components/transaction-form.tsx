@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Settings, Plus, X } from "lucide-react";
@@ -28,6 +27,7 @@ const transactionSchema = z.object({
   category: z.string().min(1, "Выберите категорию"),
   description: z.string().optional(),
   date: z.string().min(1, "Выберите дату"),
+  goalId: z.string().optional(),
 });
 
 const categorySchema = z.object({
@@ -74,6 +74,39 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
   const [newCategoryDialogOpen, setNewCategoryDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
+  const {
+    data: activeGoals = [],
+    isLoading: goalsLoading,
+    isError: goalsError,
+    refetch: refetchGoals
+  } = useQuery({
+    queryKey: ["activeGoals"],
+    queryFn: async () => {
+      try {
+        const response = await fetch("/api/goals/active", {
+          headers: AuthManager.getAuthHeaders(),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Ошибка сервера: ${response.status}`);
+        }
+
+        return response.json();
+      } catch (error) {
+        console.error("Ошибка при загрузке целей:", error);
+        throw new Error("Не удалось загрузить активные цели");
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Ошибка",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+    retry: 1,
+  });
+
   const transactionForm = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
@@ -82,6 +115,7 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
       category: "",
       description: "",
       date: new Date().toISOString().split('T')[0],
+      goalId: undefined,
     },
   });
 
@@ -137,11 +171,13 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
         category: "",
         description: "",
         date: new Date().toISOString().split('T')[0],
+        goalId: undefined,
       });
       toast({
         title: "Успешно",
         description: "Транзакция добавлена",
       });
+      refetchGoals();
     },
     onError: (error: Error) => {
       toast({
@@ -225,7 +261,14 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
   ];
 
   const onSubmitTransaction = (data: TransactionFormData) => {
-    transactionMutation.mutate(data);
+    // Преобразование "none" в undefined
+    const goalId = data.goalId === "none" ? undefined : data.goalId;
+
+    transactionMutation.mutate({
+      ...data,
+      goalId,
+      amount: parseFloat(data.amount)
+    });
   };
 
   const onSubmitCategory = (data: CategoryFormData) => {
@@ -275,6 +318,7 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
                     step="0.01"
                     placeholder="1000.00"
                     className="input-premium"
+                    onChange={(e) => field.onChange(e.target.valueAsNumber || e.target.value)}
                   />
                 </FormControl>
                 <FormMessage />
@@ -405,6 +449,50 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
             )}
           />
 
+          {watchedType === 'income' && (
+            <FormField
+              control={transactionForm.control}
+              name="goalId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-slate-700 font-medium">Связать с целью (необязательно)</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    disabled={goalsLoading || goalsError}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="input-premium">
+                        <SelectValue placeholder="Не связывать с целью" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="select-content">
+                      <SelectItem value="none">Не связывать с целью</SelectItem>
+                      {goalsLoading && (
+                        <SelectItem value="loading" disabled>
+                          Загрузка целей...
+                        </SelectItem>
+                      )}
+                      {activeGoals
+                        .filter((goal: any) => goal.currentSaved < goal.targetAmount)
+                        .map((goal: any) => (
+                          <SelectItem key={goal.id} value={goal.id.toString()}>
+                            {goal.name} ({Math.round((goal.currentSaved / goal.targetAmount) * 100)}%)
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  {goalsError && (
+                    <div className="text-xs text-rose-500 mt-1">
+                      Не удалось загрузить цели. Попробуйте обновить страницу.
+                    </div>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
           <Button
             type="submit"
             disabled={transactionMutation.isPending}
@@ -415,7 +503,6 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
         </form>
       </Form>
 
-      {/* Диалог создания новой категории */}
       <Dialog open={newCategoryDialogOpen} onOpenChange={setNewCategoryDialogOpen}>
         <DialogContent className="p-6 rounded-lg bg-white">
           <DialogHeader className="space-y-4">
@@ -476,8 +563,8 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
                           type="button"
                           onClick={() => categoryForm.setValue("icon", icon)}
                           className={`w-10 h-10 flex items-center justify-center text-xl rounded-lg transition-colors ${field.value === icon
-                              ? 'bg-blue-100 border-2 border-blue-500'
-                              : 'bg-slate-100 hover:bg-slate-200'
+                            ? 'bg-blue-100 border-2 border-blue-500'
+                            : 'bg-slate-100 hover:bg-slate-200'
                             }`}
                         >
                           {icon}

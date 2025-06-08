@@ -1,7 +1,23 @@
-import { pgTable, text, serial, integer, decimal, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, decimal, timestamp, boolean } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { InferModel } from "drizzle-orm";
+
+export const goals = pgTable('goals', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id),
+  name: text('name').notNull(),
+  description: text('description'),
+  targetAmount: decimal('target_amount', { precision: 12, scale: 2 }).notNull(),
+  targetDate: timestamp('target_date'),
+  completed: boolean('completed').default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export type Goal = InferModel<typeof goals>;
+export type InsertGoal = InferModel<typeof goals, 'insert'>;
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -40,6 +56,7 @@ export const categories = pgTable("categories", {
 export const usersRelations = relations(users, ({ many }) => ({
   transactions: many(transactions),
   categories: many(categories),
+  goals: many(goals),
 }));
 
 export const transactionsRelations = relations(transactions, ({ one }) => ({
@@ -52,6 +69,13 @@ export const transactionsRelations = relations(transactions, ({ one }) => ({
 export const categoriesRelations = relations(categories, ({ one }) => ({
   user: one(users, {
     fields: [categories.userId],
+    references: [users.id],
+  }),
+}));
+
+export const goalsRelations = relations(goals, ({ one }) => ({
+  user: one(users, {
+    fields: [goals.userId],
     references: [users.id],
   }),
 }));
@@ -86,6 +110,13 @@ export const insertCategorySchema = createInsertSchema(categories).pick({
   color: true,
   icon: true,
   budgetLimit: true,
+});
+
+export const insertGoalSchema = z.object({
+  name: z.string().min(1, "Название цели обязательно"),
+  description: z.string().optional(),
+  targetAmount: z.number().min(1, "Целевая сумма должна быть больше 0"),
+  targetDate: z.string().optional(),
 });
 
 // Types

@@ -2,10 +2,10 @@ import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { AuthManager } from "@/lib/auth";
-import { 
-  LayoutDashboard, 
-  Receipt, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  Receipt,
+  BarChart3,
   User,
   LogOut,
   Menu,
@@ -66,11 +66,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <li key={item.name}>
                     <Link href={item.href}>
                       <span
-                        className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-                          isActive
+                        className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${isActive
                             ? 'bg-gray-900 text-white'
                             : 'text-gray-700 hover:bg-gray-100'
-                        }`}
+                          }`}
                         onClick={() => setSidebarOpen(false)}
                       >
                         <Icon className="mr-3 h-5 w-5" />
@@ -112,11 +111,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       <li key={item.name}>
                         <Link href={item.href}>
                           <span
-                            className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors cursor-pointer ${
-                              isActive
+                            className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors cursor-pointer ${isActive
                                 ? 'bg-gray-900 text-white'
                                 : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
-                            }`}
+                              }`}
                           >
                             <Icon className="h-6 w-6 shrink-0" />
                             {item.name}

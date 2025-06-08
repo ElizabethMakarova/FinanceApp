@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,14 +10,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import TransactionForm from "@/components/transaction-form";
 import { toast } from "@/hooks/use-toast";
+import { format } from "date-fns"; // Добавлен импорт format
+import { ru } from "date-fns/locale"; // Добавлен импорт ru локали
 
 export default function Transactions() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
+  const [transactionToDelete, setTransactionToDelete] = useState<number | null>(null);
+  const queryClient = useQueryClient();
 
-  const { data: transactions = [], isLoading, refetch } = useQuery({
-    queryKey: ["/api/transactions"],
+  const { data: transactions = [], isLoading } = useQuery({
+    queryKey: ["transactions"],
     queryFn: async () => {
       const response = await fetch("/api/transactions", {
         headers: AuthManager.getAuthHeaders(),
@@ -32,17 +35,15 @@ export default function Transactions() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (id: number) => {
       const response = await fetch(`/api/transactions/${id}`, {
         method: "DELETE",
         headers: AuthManager.getAuthHeaders(),
       });
-      
+
       if (!response.ok) {
-        // Если ответ не 204, значит ошибка
         if (response.status !== 204) {
           const errorText = await response.text();
-          // Пытаемся распарсить JSON, если это возможно
           try {
             const errorJson = JSON.parse(errorText);
             throw new Error(errorJson.message || "Ошибка при удалении транзакции");
@@ -51,11 +52,11 @@ export default function Transactions() {
           }
         }
       }
-      
+
       return { success: true };
     },
     onSuccess: () => {
-      refetch();
+      queryClient.invalidateQueries(["transactions"]);
       setDeleteDialogOpen(false);
       toast({
         title: "Успешно",
@@ -78,13 +79,7 @@ export default function Transactions() {
     }).format(parseFloat(amount));
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('ru-RU', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
+  // Удалена функция formatDate, вместо нее используется format из date-fns
 
   const getCategoryIcon = (category: string) => {
     const icons: Record<string, string> = {
@@ -108,16 +103,16 @@ export default function Transactions() {
 
   const handleTransactionSuccess = () => {
     setIsDialogOpen(false);
-    refetch();
+    queryClient.invalidateQueries(["transactions"]);
   };
 
-  const handleDeleteClick = (id: string) => {
+  const handleDeleteClick = (id: number) => {
     setTransactionToDelete(id);
     setDeleteDialogOpen(true);
   };
 
   const confirmDelete = () => {
-    if (transactionToDelete) {
+    if (transactionToDelete !== null) {
       deleteMutation.mutate(transactionToDelete);
     }
   };
@@ -141,7 +136,7 @@ export default function Transactions() {
             <p className="text-slate-600 mt-2">История всех ваших операций</p>
           </div>
           <div className="flex items-center space-x-3">
-            <Button 
+            <Button
               onClick={() => setIsDialogOpen(true)}
               className="premium-button"
             >
@@ -156,7 +151,7 @@ export default function Transactions() {
             <Card className="premium-card">
               <CardContent className="p-8 text-center">
                 <p className="text-slate-500 mb-4">У вас пока нет транзакций</p>
-                <Button 
+                <Button
                   onClick={() => setIsDialogOpen(true)}
                   className="premium-button"
                 >
@@ -184,16 +179,16 @@ export default function Transactions() {
                         <div className="flex items-center space-x-2 mt-1">
                           <Calendar className="w-3 h-3 text-slate-400" />
                           <span className="text-xs text-slate-500">
-                            {formatDate(transaction.date)}
+                            {/* Использование единого формата даты */}
+                            {format(transaction.date, 'dd MMM yyyy', { locale: ru })}
                           </span>
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
                       <div className="text-right">
-                        <p className={`text-lg font-bold ${
-                          transaction.type === 'income' ? 'text-emerald-600' : 'text-rose-600'
-                        }`}>
+                        <p className={`text-lg font-bold ${transaction.type === 'income' ? 'text-emerald-600' : 'text-rose-600'
+                          }`}>
                           {transaction.type === 'income' ? '+' : '-'}{formatAmount(transaction.amount)}
                         </p>
                         {transaction.ecoImpact && parseFloat(transaction.ecoImpact) > 0 && (
@@ -205,11 +200,10 @@ export default function Transactions() {
                       <div className="flex flex-col items-end space-y-2">
                         <Badge
                           variant={transaction.type === 'income' ? 'default' : 'secondary'}
-                          className={`${
-                            transaction.type === 'income' 
-                              ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+                          className={`${transaction.type === 'income'
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
                               : 'bg-rose-100 text-rose-800 border-rose-200'
-                          }`}
+                            }`}
                         >
                           {transaction.type === 'income' ? (
                             <TrendingUp className="w-3 h-3 mr-1" />
@@ -218,9 +212,9 @@ export default function Transactions() {
                           )}
                           {transaction.type === 'income' ? 'Доход' : 'Расход'}
                         </Badge>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className="text-slate-500 hover:text-rose-600"
                           onClick={() => handleDeleteClick(transaction.id)}
                         >
@@ -257,7 +251,7 @@ export default function Transactions() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Отмена</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               className="bg-rose-600 hover:bg-rose-700"
               onClick={confirmDelete}
             >

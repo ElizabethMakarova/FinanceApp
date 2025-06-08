@@ -15,6 +15,7 @@ import Transactions from "@/pages/transactions";
 import Reports from "@/pages/reports";
 import Profile from "@/pages/profile";
 import NotFound from "@/pages/not-found";
+import GoalsPage from "@/pages/goals";
 
 // Protected Route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -82,6 +83,12 @@ function Router() {
       <Route path="/profile">
         <ProtectedRoute>
           <Profile />
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/goals">
+        <ProtectedRoute>
+          <GoalsPage />
         </ProtectedRoute>
       </Route>
 
