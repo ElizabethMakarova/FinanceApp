@@ -73,7 +73,7 @@ jobs:
         run: |
           npm run dev > server.log 2>&1 &
           for i in {1..50}; do
-            if curl -s http://localhost:$PORT/api/health >/dev/null; then
+            if curl -s http://localhost:5000/dashboard >/dev/null; then
               echo "Server is ready"
               exit 0
             fi
