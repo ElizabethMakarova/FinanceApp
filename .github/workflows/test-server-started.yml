@@ -1,0 +1,112 @@
+name: API Tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  NODE_ENV: test
+  JWT_SECRET: "your_ultra_secure_jwt_secret_key_change_this_in_production"
+  DATABASE_URL: "postgres://test:test@localhost:5432/test"
+  FRONTEND_URL: "http://localhost:3000"
+  PORT: 5000
+
+jobs:
+  test-api:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client jq
+          npm ci
+
+      - name: Verify PostgreSQL
+        run: |
+          for i in {1..10}; do
+            pg_isready -h localhost -U test -d test && break
+            sleep 2
+            echo "Waiting for PostgreSQL (attempt $i/10)..."
+          done
+
+      - name: Run migrations
+        run: npm run migrate
+
+      - name: Start server with debug
+        run: |
+          echo "=== Current directory ==="
+          ls -la
+          
+          echo "=== Starting server ==="
+          npm run dev > server.log 2>&1 &
+          sleep 15
+          
+          echo "=== Server process ==="
+          ps aux | grep node || true
+          
+          echo "=== Server logs ==="
+          cat server.log || true
+          
+          echo "=== Port check ==="
+          netstat -tulnp | grep 5000 || true
+          curl -v http://localhost:5000 || true
+
+      - name: Run basic connectivity test
+        run: |
+          for i in {1..10}; do
+            if curl -s http://localhost:5000 >/dev/null; then
+              echo "Server is responding"
+              exit 0
+            fi
+            sleep 3
+            echo "Waiting for server (attempt $i/10)..."
+          done
+          echo "Server is not responding"
+          exit 1
+
+      - name: Run API tests
+        if: success()
+        run: |
+          chmod +x ./tests/test_started.sh
+          export BASE_URL="http://localhost:$PORT"
+          ./tests/test_started.sh | tee test-output.log
+          if grep -q "ERROR" test-output.log; then
+            echo "::error::Tests failed"
+            exit 1
+          fi
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: |
+            server.log
+            test-output.log
