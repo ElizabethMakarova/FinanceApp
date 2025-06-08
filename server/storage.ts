@@ -1,9 +1,9 @@
-import { 
-  users, 
-  transactions, 
+import {
+  users,
+  transactions,
   categories,
   ecoMetrics,
-  type User, 
+  type User,
   type InsertUser,
   type Transaction,
   type InsertTransaction,
@@ -11,7 +11,8 @@ import {
   type InsertCategory
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { goals, type Goal, type InsertGoal } from "@shared/schema";
+import { eq, and, sql, desc, gt, or, isNull, gte } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -36,9 +37,113 @@ export interface IStorage {
   // Dashboard and analytics
   getDashboardStats(userId: number): Promise<any>;
   getMonthlyReport(userId: number, month: number, year: number): Promise<any>;
+
+  // Goal methods
+  getUserGoals(userId: number): Promise<Goal[]>;
+  getGoal(id: number): Promise<Goal | undefined>;
+  createGoal(insertGoal: InsertGoal & { userId: number }): Promise<Goal>;
+  updateGoal(id: number, updateData: Partial<InsertGoal>): Promise<Goal>;
+  deleteGoal(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
+  // Add to DatabaseStorage class
+  async getUserGoals(userId: number): Promise<Goal[]> {
+    try {
+      return await db
+        .select()
+        .from(goals)
+        .where(eq(goals.userId, userId))
+        .orderBy(desc(goals.createdAt));
+    } catch (error) {
+      console.error("Error fetching goals:", error);
+      if (error instanceof Error && error.message.includes('отношение "goals" не существует')) {
+        // Return empty array if table doesn't exist yet
+        return [];
+      }
+      throw new Error("Не удалось загрузить цели");
+    }
+  }
+
+  async getGoal(id: number): Promise<Goal | undefined> {
+    const [goal] = await db.select().from(goals).where(eq(goals.id, id));
+    return goal || undefined;
+  }
+
+  async createGoal(insertGoal: InsertGoal & { userId: number }): Promise<Goal> {
+    try {
+      const [goal] = await db
+        .insert(goals)
+        .values({
+          ...insertGoal,
+          targetDate: insertGoal.targetDate || null,
+        })
+        .returning();
+      return goal;
+    } catch (error) {
+      console.error("Error creating goal:", error);
+      throw new Error("Не удалось создать цель");
+    }
+  }
+
+  async updateGoal(id: number, updateData: Partial<InsertGoal>): Promise<Goal> {
+    const [updatedGoal] = await db
+      .update(goals)
+      .set({
+        ...updateData,
+        updatedAt: new Date(),
+      })
+      .where(eq(goals.id, id))
+      .returning();
+    return updatedGoal;
+  }
+
+  async deleteGoal(id: number): Promise<void> {
+    await db.delete(goals).where(eq(goals.id, id));
+  }
+
+  async updateGoalProgress(goalId: number, amount: number): Promise<Goal> {
+    try {
+      const [goal] = await db
+        .update(goals)
+        .set({
+          currentSaved: sql`${goals.currentSaved} + ${amount}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(goals.id, goalId))
+        .returning();
+      return goal;
+    } catch (error) {
+      console.error("Error updating goal progress:", error);
+      throw new Error("Не удалось обновить прогресс цели");
+    }
+  }
+
+  async getActiveGoals(userId: number): Promise<Goal[]> {
+    try {
+      const today = new Date();
+      const todayString = today.toISOString().split('T')[0]; // Получаем дату в формате YYYY-MM-DD
+
+      return await db
+        .select()
+        .from(goals)
+        .where(
+          and(
+            eq(goals.userId, userId),
+            sql`${goals.targetAmount} > ${goals.currentSaved}`,
+            or(
+              isNull(goals.targetDate),
+              sql`${goals.targetDate}::date >= ${todayString}::date` // Сравниваем даты как строки
+            )
+          )
+        )
+        .orderBy(desc(goals.createdAt));
+    } catch (error) {
+      console.error("Error fetching active goals:", error);
+      throw new Error("Не удалось загрузить активные цели");
+    }
+  }
+
   async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user || undefined;
@@ -72,8 +177,8 @@ export class DatabaseStorage implements IStorage {
       amount: insertTransaction.amount,
       category: insertTransaction.category,
       description: insertTransaction.description,
-      date: new Date(insertTransaction.date),
-      ecoImpact: insertTransaction.ecoImpact,
+      date: insertTransaction.date,
+      ecoImpact: insertTransaction.ecoImpact, // Добавляем ecoImpact
     };
 
     const [transaction] = await db
@@ -148,7 +253,7 @@ export class DatabaseStorage implements IStorage {
 
     const user = userRecord[0];
     const accountAge = user ? Math.floor((Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24)) : 0;
-    
+
     const totalCo2 = userTransactions
       .reduce((sum, t) => sum + (parseFloat(t.ecoImpact || '0')), 0);
 
