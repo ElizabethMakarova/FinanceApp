@@ -6,9 +6,17 @@ on:
   pull_request:
     branches: [ "main" ]
 
+env:
+  NODE_ENV: test
+  JWT_SECRET: "your_ultra_secure_jwt_secret_key_change_this_in_production"
+  DATABASE_URL: "postgres://test:test@postgres:5432/test"  # Changed to use service name
+  FRONTEND_URL: "http://localhost:3000"
+  PORT: 5000  # Explicitly set port
+
 jobs:
   test-api:
     runs-on: ubuntu-latest
+    
     services:
       postgres:
         image: postgres:15
@@ -19,12 +27,6 @@ jobs:
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-
-    env:
-      NODE_ENV: test
-      JWT_SECRET: "JWT_SECRET=your_ultra_secure_jwt_secret_key_change_this_in_production"
-      DATABASE_URL: "postgres://test:test@localhost:5432/test"
-      FRONTEND_URL: "http://localhost:3000"
 
     steps:
       - name: Checkout repository
@@ -39,18 +41,28 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq curl
+          sudo apt-get install -y jq curl netcat
           npm ci
 
-      - name: Start server
+      - name: Wait for PostgreSQL
+        run: |
+          for i in {1..10}; do
+            nc -z postgres 5432 && break
+            sleep 5
+          done
+
+      - name: Start server with proper database config
         run: |
           npm run dev > server.log 2>&1 &
-          sleep 5
-          curl --retry 5 --retry-delay 3 --retry-all-errors http://localhost:5000/api/health
+          sleep 10
+          curl --retry 10 --retry-delay 5 --retry-all-errors http://localhost:$PORT/api/health
 
       - name: Run API tests
+        timeout-minutes: 5
         run: |
           chmod +x ./tests/test_api.sh
+          # Set BASE_URL to use the correct port
+          export BASE_URL="http://localhost:$PORT"
           ./tests/test_api.sh | tee test-output.log
           if grep -q "ERROR" test-output.log; then
             echo "::error::Some tests failed"
@@ -62,11 +74,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: server-logs
-          path: server.log
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: test-output.log
+          path: |
+            server.log
+            test-output.log
