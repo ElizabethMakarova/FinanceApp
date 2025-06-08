@@ -61,6 +61,8 @@ jobs:
       - name: Start server with debug
         run: |
           echo pwd
+          pwd
+          npm install
           npm run dev > server.log 2>&1 &
           sleep 10
           echo "=== Server logs ==="
