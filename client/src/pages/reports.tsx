@@ -229,11 +229,10 @@ export default function Reports() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className={`text-2xl font-bold ${
-                    (reportData.totalIncome || 0) - (reportData.totalExpenses || 0) >= 0 
-                      ? 'text-green-600' 
+                  <p className={`text-2xl font-bold ${(reportData.totalIncome || 0) - (reportData.totalExpenses || 0) >= 0
+                      ? 'text-green-600'
                       : 'text-red-600'
-                  }`}>
+                    }`}>
                     {formatAmount((reportData.totalIncome || 0) - (reportData.totalExpenses || 0))}
                   </p>
                 </CardContent>
@@ -265,7 +264,7 @@ export default function Reports() {
                         <div className="text-right">
                           <p className="font-semibold text-gray-900">{formatAmount(category.amount)}</p>
                           <div className="w-24 h-2 bg-gray-200 rounded-full mt-1">
-                            <div 
+                            <div
                               className="h-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"
                               style={{ width: `${category.percentage}%` }}
                             />
@@ -297,11 +296,10 @@ export default function Reports() {
                     <div>
                       <div className="flex items-center justify-between mb-4">
                         <span className="text-sm font-medium text-gray-600">CO₂ выбросы</span>
-                        <Badge className={`${
-                          reportData.ecoMetrics.rating === 'A+' ? 'bg-emerald-100 text-emerald-800' :
-                          reportData.ecoMetrics.rating === 'A' ? 'bg-green-100 text-green-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
+                        <Badge className={`${reportData.ecoMetrics.rating === 'A+' ? 'bg-emerald-100 text-emerald-800' :
+                            reportData.ecoMetrics.rating === 'A' ? 'bg-green-100 text-green-800' :
+                              'bg-yellow-100 text-yellow-800'
+                          }`}>
                           Рейтинг: {reportData.ecoMetrics.rating}
                         </Badge>
                       </div>

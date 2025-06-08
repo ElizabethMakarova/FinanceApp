@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { 
+import {
   Info,
   ChevronDown,
   ChevronUp,
@@ -44,8 +44,8 @@ export default function EcoImpactCard({ ecoRating, co2Reduction }: EcoImpactCard
             <Leaf className="h-5 w-5 text-emerald-600 mr-2" />
             <span className="text-slate-800 font-semibold">Экологический рейтинг</span>
           </div>
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             size="sm"
             onClick={() => setShowLevels(!showLevels)}
             className="text-slate-600 hover:bg-emerald-100"
@@ -66,7 +66,7 @@ export default function EcoImpactCard({ ecoRating, co2Reduction }: EcoImpactCard
             <p className="text-sm text-slate-600">Снижение CO₂</p>
           </div>
         </div>
-        
+
         <div className="relative pt-1 mb-4">
           <Progress value={co2Reduction} className="h-3 bg-slate-200" />
           <div className="flex justify-between text-xs text-slate-600 mt-1">
@@ -74,17 +74,16 @@ export default function EcoImpactCard({ ecoRating, co2Reduction }: EcoImpactCard
             <span>100%</span>
           </div>
         </div>
-        
+
         {showLevels && (
           <div className="mt-4 bg-white rounded-lg p-4 border border-slate-200 shadow-sm">
             <h4 className="font-medium text-slate-800 mb-3">Уровни экологического рейтинга:</h4>
             <div className="space-y-3">
               {ECO_RATING_LEVELS.map((level) => (
-                <div 
-                  key={level.rating} 
-                  className={`flex items-center justify-between p-2 rounded-md ${
-                    level.rating === ecoRating ? "bg-emerald-50 border border-emerald-200" : ""
-                  }`}
+                <div
+                  key={level.rating}
+                  className={`flex items-center justify-between p-2 rounded-md ${level.rating === ecoRating ? "bg-emerald-50 border border-emerald-200" : ""
+                    }`}
                 >
                   <div className="flex items-center">
                     <span className="font-medium w-8 text-slate-800">{level.rating}</span>
@@ -98,7 +97,7 @@ export default function EcoImpactCard({ ecoRating, co2Reduction }: EcoImpactCard
             </div>
           </div>
         )}
-        
+
         <p className="mt-4 text-sm text-slate-700">
           Ваш вклад в сохранение экологии. Продолжайте в том же духе!
         </p>
