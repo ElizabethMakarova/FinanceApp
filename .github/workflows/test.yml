@@ -8,7 +8,7 @@ on:
 
 env:
   NODE_ENV: test
-  JWT_SECRET: "your_ultra_secure_jwt_secret_key_change_this_in_production"
+  JWT_SECRET: "test_secret_123"
   DATABASE_URL: "postgres://test:test@localhost:5432/test"
   FRONTEND_URL: "http://localhost:3000"
   PORT: 5000
@@ -31,8 +31,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
-        volumes:
-          - pgdata:/var/lib/postgresql/data
 
     steps:
       - name: Checkout repository
@@ -47,41 +45,38 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client
+          sudo apt-get install -y postgresql-client jq curl
           npm ci
 
-      - name: Verify PostgreSQL connection
-        timeout-minutes: 2
+      - name: Verify PostgreSQL
         run: |
-          for i in {1..30}; do
-            if pg_isready -h localhost -p 5432 -U test -d test; then
-              echo "PostgreSQL is ready"
-              exit 0
-            fi
-            echo "Waiting for PostgreSQL (attempt $i/30)..."
+          for i in {1..10}; do
+            pg_isready -h localhost -U test -d test && break
             sleep 2
           done
-          echo "PostgreSQL failed to start"
-          exit 1
 
-      - name: Run database migrations
-        run: |
-          npm run migrate
+      - name: Run migrations
+        run: npm run migrate
 
-      - name: Start server with simple sleep
+      - name: Start server with debug
         run: |
           npm run dev > server.log 2>&1 &
-          sleep 15  # Просто ждем 15 секунд вместо проверки готовности
-          echo "Server started after 15 second wait"
+          sleep 10
+          echo "=== Server logs ==="
+          cat server.log
+          echo "=== Checking server status ==="
+          curl -v http://localhost:5000 || true
 
-      - name: Run API tests
-        timeout-minutes: 5
+      - name: Run tests with debug
         run: |
           chmod +x ./tests/test_api.sh
           export BASE_URL="http://localhost:$PORT"
+          echo "=== Running tests ==="
           ./tests/test_api.sh | tee test-output.log
           if grep -q "ERROR" test-output.log; then
-            echo "::error::Some tests failed"
+            echo "=== Test output ==="
+            cat test-output.log
+            echo "::error::Tests failed"
             exit 1
           fi
 
