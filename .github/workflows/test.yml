@@ -45,7 +45,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client jq curl
+          sudo apt-get install -y postgresql-client jq
           npm ci
 
       - name: Verify PostgreSQL
@@ -53,6 +53,7 @@ jobs:
           for i in {1..10}; do
             pg_isready -h localhost -U test -d test && break
             sleep 2
+            echo "Waiting for PostgreSQL (attempt $i/10)..."
           done
 
       - name: Run migrations
@@ -60,25 +61,43 @@ jobs:
 
       - name: Start server with debug
         run: |
-          echo pwd
-          pwd
-          npm install
+          echo "=== Current directory ==="
+          ls -la
+          
+          echo "=== Starting server ==="
           npm run dev > server.log 2>&1 &
-          sleep 10
+          sleep 15
+          
+          echo "=== Server process ==="
+          ps aux | grep node || true
+          
           echo "=== Server logs ==="
-          cat server.log
-          echo "=== Checking server status ==="
+          cat server.log || true
+          
+          echo "=== Port check ==="
+          netstat -tulnp | grep 5000 || true
           curl -v http://localhost:5000 || true
 
-      - name: Run tests with debug
+      - name: Run basic connectivity test
+        run: |
+          for i in {1..10}; do
+            if curl -s http://localhost:5000 >/dev/null; then
+              echo "Server is responding"
+              exit 0
+            fi
+            sleep 3
+            echo "Waiting for server (attempt $i/10)..."
+          done
+          echo "Server is not responding"
+          exit 1
+
+      - name: Run API tests
+        if: success()
         run: |
           chmod +x ./tests/test_api.sh
           export BASE_URL="http://localhost:$PORT"
-          echo "=== Running tests ==="
           ./tests/test_api.sh | tee test-output.log
           if grep -q "ERROR" test-output.log; then
-            echo "=== Test output ==="
-            cat test-output.log
             echo "::error::Tests failed"
             exit 1
           fi
