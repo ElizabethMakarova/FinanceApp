@@ -9,7 +9,7 @@ on:
 env:
   NODE_ENV: test
   JWT_SECRET: "your_ultra_secure_jwt_secret_key_change_this_in_production"
-  DATABASE_URL: "postgres://test:test@postgres:5432/test"
+  DATABASE_URL: "postgres://test:test@localhost:5432/test"  # Используем localhost вместо имени сервиса
   FRONTEND_URL: "http://localhost:3000"
   PORT: 5000
 
@@ -26,13 +26,20 @@ jobs:
           POSTGRES_DB: test
         ports:
           - 5432:5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        # Важно! Добавляем явные настройки для надежности
+        volumes:
+          - pgdata:/var/lib/postgresql/data
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
@@ -41,29 +48,37 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq curl netcat-openbsd  # Changed to specific package
+          sudo apt-get install -y postgresql-client  # Устанавливаем родной клиент PostgreSQL
           npm ci
 
-      - name: Wait for PostgreSQL
+      - name: Verify PostgreSQL connection
+        timeout-minutes: 2
         run: |
-          for i in {1..100}; do
-            nc -z postgres 5432 && { echo "PostgreSQL is ready"; exit 0; }
-            sleep 5
-            echo "Waiting for PostgreSQL (attempt $i/10)..."
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U test -d test; then
+              echo "PostgreSQL is ready"
+              exit 0
+            fi
+            echo "Waiting for PostgreSQL (attempt $i/30)..."
+            sleep 2
           done
           echo "PostgreSQL failed to start"
           exit 1
 
+      - name: Run database migrations
+        run: |
+          npm run migrate
+
       - name: Start server
         run: |
           npm run dev > server.log 2>&1 &
-          for i in {1..10}; do
+          for i in {1..50}; do
             if curl -s http://localhost:$PORT/api/health >/dev/null; then
               echo "Server is ready"
               exit 0
             fi
-            sleep 5
-            echo "Waiting for server (attempt $i/10)..."
+            echo "Waiting for server (attempt $i/50)..."
+            sleep 3
           done
           echo "Server failed to start"
           exit 1
