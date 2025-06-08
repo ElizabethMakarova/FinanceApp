@@ -9,9 +9,9 @@ on:
 env:
   NODE_ENV: test
   JWT_SECRET: "your_ultra_secure_jwt_secret_key_change_this_in_production"
-  DATABASE_URL: "postgres://test:test@postgres:5432/test"  # Changed to use service name
+  DATABASE_URL: "postgres://test:test@postgres:5432/test"
   FRONTEND_URL: "http://localhost:3000"
-  PORT: 5000  # Explicitly set port
+  PORT: 5000
 
 jobs:
   test-api:
@@ -41,27 +41,37 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq curl netcat
+          sudo apt-get install -y jq curl netcat-openbsd  # Changed to specific package
           npm ci
 
       - name: Wait for PostgreSQL
         run: |
           for i in {1..10}; do
-            nc -z postgres 5432 && break
+            nc -z postgres 5432 && { echo "PostgreSQL is ready"; exit 0; }
             sleep 5
+            echo "Waiting for PostgreSQL (attempt $i/10)..."
           done
+          echo "PostgreSQL failed to start"
+          exit 1
 
-      - name: Start server with proper database config
+      - name: Start server
         run: |
           npm run dev > server.log 2>&1 &
-          sleep 10
-          curl --retry 10 --retry-delay 5 --retry-all-errors http://localhost:$PORT/api/health
+          for i in {1..10}; do
+            if curl -s http://localhost:$PORT/api/health >/dev/null; then
+              echo "Server is ready"
+              exit 0
+            fi
+            sleep 5
+            echo "Waiting for server (attempt $i/10)..."
+          done
+          echo "Server failed to start"
+          exit 1
 
       - name: Run API tests
         timeout-minutes: 5
         run: |
           chmod +x ./tests/test_api.sh
-          # Set BASE_URL to use the correct port
           export BASE_URL="http://localhost:$PORT"
           ./tests/test_api.sh | tee test-output.log
           if grep -q "ERROR" test-output.log; then
@@ -69,11 +79,11 @@ jobs:
             exit 1
           fi
 
-      - name: Upload server logs
+      - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: server-logs
+          name: test-logs
           path: |
             server.log
             test-output.log
