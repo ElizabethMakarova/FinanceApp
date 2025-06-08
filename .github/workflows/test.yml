@@ -20,36 +20,53 @@ jobs:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
+    env:
+      NODE_ENV: test
+      JWT_SECRET: "JWT_SECRET=your_ultra_secure_jwt_secret_key_change_this_in_production"
+      DATABASE_URL: "postgres://test:test@localhost:5432/test"
+      FRONTEND_URL: "http://localhost:3000"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 18
+          cache: 'npm'
 
       - name: Install dependencies
         run: |
-          npm ci
           sudo apt-get update
           sudo apt-get install -y jq curl
+          npm ci
 
-      - name: Start server in background
+      - name: Start server
         run: |
-          npm run dev &
-          sleep 10 # Даем серверу время запуститься
+          npm run dev > server.log 2>&1 &
+          sleep 5
+          curl --retry 5 --retry-delay 3 --retry-all-errors http://localhost:5000/api/health
 
       - name: Run API tests
         run: |
           chmod +x ./tests/test_api.sh
-          ./tests/test_api.sh
+          ./tests/test_api.sh | tee test-output.log
+          if grep -q "ERROR" test-output.log; then
+            echo "::error::Some tests failed"
+            exit 1
+          fi
 
-      - name: Upload test results (optional)
+      - name: Upload server logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: api-test-results
-          path: |
-            test-results.*
-            logs/*.log
+          name: server-logs
+          path: server.log
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-output.log
